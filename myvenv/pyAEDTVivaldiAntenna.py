@@ -53,9 +53,10 @@ VIA_yshift = -0.15
 VIA_x2shift = -0.45      # for the bottom row VIAs
 VIA_y2shift = 1.05
 
-VIAC_xshift = 0      # Adjust location of Center VIAs
-VIAC_yshift = 0
+VIAC_xshift = 0.25      # Adjust location of Center VIAs
+VIAC_yshift = 0.05
 n_vias_c = 3
+VIA_C_spacing_modifier = -0.2
 
 
 # Vivaldi Shape-----------------------
@@ -479,8 +480,8 @@ Radiation.transparency = 1
 
 # Duplicate for array---------------------------------
 VIA_list = ["VIA", "VIA_1", "VIA_2", "VIA_1_1"]
-TSA_parts_attached = ["Radiation", "Feed", "Substrate"]
-TSA_parts_separate = ["GND", "SubEX", "GNDEX", "FeedGNDEX"] + VIA_list
+TSA_parts_attached = ["Radiation", "Substrate"]
+TSA_parts_separate = ["GND", "SubEX", "Feed", "GNDEX", "FeedGNDEX"] + VIA_list
 
 for i in TSA_parts_attached:     # Attatched Duplicates
     hfss.modeler[i].duplicate_along_line(vector=[0, SubW, 0],           # Vector to duplicate along, number of copies
@@ -512,21 +513,24 @@ Cent_ant_extension = hfss.modeler.create_box(origin=[Fstart_x, SubW - (FStartW -
                             material="Copper")
 
     # Center VIAs
-VIA_C_Spacing = ((Sub_EXL) + 2*VRadius*n_vias_c) / (n_vias_c - 1) - VIA_spacing_modifier
+# VIA_C_Spacing = ((Sub_EXL) + 2*VRadius*n_vias_c) / (n_vias_c - 1) - VIA_spacing_modifier
+VIA_C_Spacing = (((-SubW/2) - (-GND_cutW/2 + GND_y_corner_change)) + 2*VRadius*n_vias) / (n_vias_c - 1) - VIA_C_spacing_modifier
+
 VIA_C = hfss.modeler.create_cylinder(orientation="Z",         # Creates a cylinder for VIA cut
-                                   origin=[0, 0, GNDH],
+                                   origin=[-SubL/2 + SubTrim -GND_cutL - VIAC_xshift, SubW - Center_GND_cut_W/2 - GND_y_corner_change/2 - VIAC_yshift, GNDH],
                                    radius=VRadius,
                                    height=-VHeight,
                                    name="VIA_C")
 
-# hfss.modeler[VIA].duplicate_along_line(vector=[VIA_C_Spacing, 0, 0],           # Vector to duplicate along starts from target
-#                                   clones=n_vias,                             # Final number of copies
-#                                   attach=True)                               # Attach to make 1 solid
+hfss.modeler[VIA_C].duplicate_along_line(vector=[VIA_C_Spacing, 0, 0],           # Vector to duplicate along starts from target
+                                  clones=n_vias_c,                             # Final number of copies
+                                  attach=True)                               # Attach to make 1 solid
 
-# hfss.modeler.mirror(assignment=VIA_C,          # mirrors VIAs
-#                     origin=[0, 0, GNDH],
-#                     vector=[0, 1, 0],
-#                     duplicate=True)
+hfss.modeler[VIA_C].duplicate_along_line(vector=[0, 2*(Center_GND_cut_W/2 + GND_y_corner_change/2 + VIAC_yshift), 0],           # Vector to duplicate along, number of copies
+                                  clones=2,
+                                  attach=True)
+
+hfss.modeler.subtract(["GNDEX_1", "SubEX_1"], ["VIA_C", "VIA_3", "VIA_2_1"], keep_originals=False)
 
 # Port-------------------------------------------
 Port = hfss.modeler.create_rectangle(origin=[-SubL/2 + SubTrim, (clones-2)*SubW + PortB/2, GNDH],
@@ -542,6 +546,21 @@ hfss.wave_port(Port, modes=1, name="WavePort1", renormalize=False)
 
 # Assign Radiation (air box)-------------------
 hfss.assign_radiation_boundary_to_objects("Radiation", name="AirRad")
+
+# Lumped RLC's
+hfss.create_lumped_rlc_between_objects(assignment="FeedGNDEX",
+                                  reference="Feed",
+                                  name=None, resistance=50,
+                                  inductance=None,
+                                  capacitance=None,
+                                  is_boundary_on_plane=True)
+
+hfss.create_lumped_rlc_between_objects(assignment="FeedGNDEX_2",
+                                  reference="Feed_2",
+                                  name=None, resistance=50,
+                                  inductance=None,
+                                  capacitance=None,
+                                  is_boundary_on_plane=True)
 
 # Set up frequency sweep simulation parameters---------------
 setup1 = hfss.create_setup("Setup1")
